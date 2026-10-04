@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>واحد اكس سيتي</title>
+<style>
+:root{--bg:#12142b;--panel:#1c2042;--ink:#f1eefc;--mute:#9a9dc4;--line:#323766;--gold:#ffb347;--pink:#ff5c98;--ok:#4be09a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Tajawal,Tahoma,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{margin:0;font-size:40px;font-weight:900}h1 b{color:var(--gold)}
+h2{font-size:20px;margin:26px 0 10px}
+.mute{color:var(--mute);font-size:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.grow{flex:1;min-width:120px}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:9px 16px;background:var(--ink);color:var(--bg);cursor:pointer}
+button.gold{background:var(--gold);color:#1d1400}button.pink{background:var(--pink);color:#fff}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+.coins{font-size:28px;font-weight:900;color:var(--gold)}
+.res{min-height:28px;font-weight:700;margin-top:8px}.win{color:var(--ok)}.lose{color:var(--pink)}
+.car,.pl{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sold{text-decoration:line-through;opacity:.5}
+.note{background:var(--pink);color:#fff;padding:8px 12px;border-radius:8px;margin:10px 0;display:flex;justify-content:space-between;gap:8px}
+.owner{border:2px dashed var(--gold);border-radius:12px;padding:12px;margin-top:26px}
+.owner h2{margin-top:0;color:var(--gold)}
+.err{color:var(--pink);min-height:24px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>واحد <b>اكس</b> سيتي</h1>
+<p class="mute">مدينة الرهانات. العملات افتراضية.</p>
+<div id="app"></div>
+</div>
+<script>
+var app=document.getElementById("app"),S=null,last="",poll=null,mode="login";
+function esc(s){var d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML}
+function fmt(n){return Number(n).toLocaleString("en-US")}
+async function api(url,method,body){
+  var r=await fetch(url,{method:method||"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  var j=await r.json().catch(function(){return{}});
+  if(!r.ok)throw new Error(j.error||"خطأ");
+  return j;
+}
+function authView(){
+  clearInterval(poll);S=null;last="";
+  app.innerHTML='<div class="card"><b>'+(mode==="login"?"تسجيل الدخول":"حساب جديد")+'</b><div class="row"><div class="grow"><input id="n" placeholder="الاسم" maxlength="16" autocomplete="username"></div><div class="grow"><input id="p" type="password" placeholder="كلمة السر" autocomplete="current-password"></div></div><div class="row"><button class="gold" id="go">'+(mode==="login"?"دخول":"إنشاء حساب وأخذ 1000 عملة")+'</button><button class="ghost" id="sw">'+(mode==="login"?"لا أملك حساباً":"لدي حساب")+'</button></div><div class="err" id="err"></div></div>';
+  document.getElementById("sw").onclick=function(){mode=mode==="login"?"reg":"login";authView()};
+  document.getElementById("go").onclick=async function(){
+    try{await api(mode==="login"?"/api/login":"/api/register","POST",{name:n.value,pass:p.value});start()}
+    catch(e){document.getElementById("err").textContent=e.message}
+  };
+}
+async function load(force){
+  if(!force&&document.activeElement&&document.activeElement.tagName==="INPUT")return;
+  try{S=await api("/api/state");var j=JSON.stringify(S);if(j!==last||force){last=j;view()}}
+  catch(e){authView()}
+}
+function start(){load(true);clearInterval(poll);poll=setInterval(load,4000)}
+function view(){
+  var m=S.me,h="";
+  h+='<div class="pl"><div><div class="mute">أهلاً '+esc(m.name)+(m.owner?" (المالك)":"")+'</div>'+(m.owner?'':'<div class="coins">'+fmt(m.coins)+' عملة</div>')+'</div><button class="ghost" id="out">خروج</button></div>';
+  if(m.note)h+='<div class="note"><span>رسالة من المالك: '+esc(m.note)+'</span><button class="ghost" id="ack">حسناً</button></div>';
+  if(!m.owner)h+='<h2>طاولة الرهان</h2><div class="card"><input id="stake" type="number" min="1" inputmode="numeric" placeholder="مبلغ الرهان"><div class="row"><button class="pink grow" data-bet="1">أحمر</button><button class="grow" data-bet="1">أسود</button></div><div class="mute" style="margin-top:6px">الفوز يعطيك ضعف الرهان. الفرصة 47%.</div><div class="res" id="res"></div></div>';
+  h+='<h2>معرض السيارات</h2>';
+  if(!S.cars.length)h+='<div class="card mute">لا توجد سيارات للبيع الآن.</div>';
+  S.cars.forEach(function(c){
+    h+='<div class="card car"><div><b class="'+(c.soldTo?"sold":"")+'">'+esc(c.name)+'</b><div class="mute">'+fmt(c.price)+' عملة'+(c.soldTo?" · بيعت إلى "+esc(c.soldTo):"")+'</div></div><div>'+(!m.owner&&!c.soldTo?'<button class="gold" data-buy="'+c.id+'">شراء</button> ':"")+(m.owner?'<button class="ghost" data-del="'+c.id+'">حذف</button>':"")+'</div></div>';
+  });
+  h+='<h2>لوحة الأغنياء</h2><div class="card">';
+  if(!S.board.length)h+='<span class="mute">لا يوجد لاعبون بعد.</span>';
+  S.board.forEach(function(p,i){h+='<div class="pl"><span>'+(i+1)+". "+esc(p.name)+"</span><b>"+fmt(p.coins)+"</b></div>"});
+  h+="</div>";
+  if(m.owner){
+    h+='<div class="owner"><h2>لوحة المالك</h2><div class="card"><b>إضافة سيارة</b><div class="row"><div class="grow"><input id="cn" placeholder="اسم السيارة"></div><div class="grow"><input id="cp" type="number" inputmode="numeric" placeholder="السعر"></div><button class="gold" id="addcar">إضافة</button></div></div><div class="card"><b>التحكم باللاعبين</b>';
+    if(!S.players.length)h+='<p class="mute">لا يوجد لاعبون بعد.</p>';
+    S.players.forEach(function(p){
+      h+='<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><div class="pl"><b>'+esc(p.name)+"</b><span>"+fmt(p.coins)+'</span></div><div class="row"><div class="grow"><input id="a-'+p.key+'" type="number" inputmode="numeric" placeholder="المبلغ"></div><div class="grow"><input id="w-'+p.key+'" placeholder="السبب"></div></div><div class="row"><button class="pink" data-adj="fine" data-k="'+p.key+'">خصم (لعب مشبوه)</button><button class="gold" data-adj="give" data-k="'+p.key+'">إضافة</button></div></div>';
+    });
+    h+="</div></div>";
+  }
+  app.innerHTML=h;
+}
+app.addEventListener("click",async function(e){
+  var t=e.target.closest("button");if(!t||!S)return;
+  var d=t.dataset,$=function(i){return document.getElementById(i)};
+  try{
+    if(t.id==="out"){await api("/api/logout","POST");authView()}
+    else if(t.id==="ack"){await api("/api/ack","POST");load(true)}
+    else if(d.bet){
+      var r=await api("/api/bet","POST",{stake:Number($("stake").value)});
+      await load(true);var el=$("res");el.className="res "+(r.win?"win":"lose");el.textContent=r.win?"فزت!":"خسرت";
+    }
+    else if(d.buy){await api("/api/buy","POST",{id:d.buy});load(true)}
+    else if(d.del){if(confirm("حذف هذه السيارة؟")){await api("/api/admin/car/"+d.del,"DELETE");load(true)}}
+    else if(t.id==="addcar"){await api("/api/admin/car","POST",{name:$("cn").value,price:Number($("cp").value)});load(true)}
+    else if(d.adj){await api("/api/admin/adjust","POST",{key:d.k,type:d.adj,amount:Number($("a-"+d.k).value),reason:$("w-"+d.k).value});load(true)}
+  }catch(err){alert(err.message)}
+});
+load(true);
+</script>
+</body>
+</html>
